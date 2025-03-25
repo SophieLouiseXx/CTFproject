@@ -3,10 +3,12 @@
     <body>
         <style>
             body{
-              background-image: url('Sign_In.JPG.jpg');
+              background-image: url('Sign_In.JPG');
               background-repeat: no-repeat; /* This is done to ensure the picture isnt repeated in the page.*/
-              background-attachment: fixed;
-              background-size: cover;
+              background-attachment: fixed; 
+              background-size: 80%;
+              background-position: center;
+              
             }
             input[type=email]{
               text-align:center;
@@ -69,13 +71,15 @@ if (!$conn) {
   die("Connection failed: " . mysqli_connect_error());
 }
 
-$sql = "SELECT* FROM users WHERE Email='$email' && pWord = '$pWord'";
+$sql = "SELECT * FROM users WHERE Email='$email' && pWord = '$pWord'";
 $result = mysqli_query($conn, $sql);
 
 if (mysqli_num_rows($result) == 1) {
-  echo "You exist!!", $email; // REDIRECT to BOOKSYS.PHP
+  setcookie("email", $email, time() + (86400 * 30), "/"); // Store email in cookie for 30 days
+
+  //echo "You exist!!", $email; // REDIRECT to BOOKSYS.PHP
   $conn->close();
-  header('Location: ../Booking/BOOKSYS.php ');
+  header('Location: ../Homepage/Homepage.php ');
 
 } else {
   echo "<script type='text/javascript'>alert('$error');</script>";

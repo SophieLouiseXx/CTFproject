@@ -3,10 +3,12 @@
 <head>
 <style>
 body {
-    background-image: url('Sign_Up.JPG.jpg');
+    background-image: url('Sign_Up.jpg');
     background-repeat: no-repeat; /* This is done to ensure the picture isnt repeated in the page.*/
     background-attachment: fixed;
     background-size: cover; /* */
+    background-size: 80%;
+    background-position: center;
 }
 div{ /*Background*/
   border-radius:25px; /* Decides how round a corner is. The higher the number, the more rounded it is. */
