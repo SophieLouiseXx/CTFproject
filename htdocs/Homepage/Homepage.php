@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['title'], $_POST['post
     $row = $idResult->fetch_assoc();
     $newId = ($row['max_id'] !== null) ? $row['max_id'] + 1 : 1;
     
-    $sql = "INSERT INTO posts (id, title, post, email) VALUES ('$newId', '$title', '$post', '$email')";
+    $sql = "INSERT INTO posts (id, title, post, email, prvt) VALUES ('$newId', '$title', '$post', '$email', 'no')";
 
     if ($conn->query($sql) === TRUE) {
         echo "New post added successfully!";
@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_post_id'])) {
 
 
 // Fetch posts from the database
-$sql = "SELECT title, post, email, id FROM posts";
+$sql = "SELECT title, post, email, id, prvt FROM posts";
 $result = $conn->query($sql);
 
 $posts = [];
@@ -156,14 +156,35 @@ $conn->close();
     <button class="tab-link" onclick="openTab(event, 'view-posts')">View All Posts</button>
     <button class="tab-link" onclick="openTab(event, 'change-password')">Change Password</button>
     <button class="tab-link" onclick="openTab(event, 'my-posts')">View My Posts</button>
+    <button class="tab-link" onclick="openTab(event, 'edit-posts')">Edit My Posts</button>
 
 </div>
 
 <!-- Account Details Tab -->
 <div id="account-details" class="tab-content active-content">
     <h2>Account Details</h2>
-    <p>Here, you can view your account information.</p>
-    <!-- Display user account info here -->
+    <?php
+    $user_email = isset($_COOKIE['email']) ? $_COOKIE['email'] : '';
+    $conn = new mysqli("localhost", "root", "root", "user");
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+    
+    $sql = "SELECT * FROM users WHERE email = '$user_email'";
+    $result = $conn->query($sql);
+
+    if ($result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+        echo "<p>First Name: " . htmlspecialchars($user['fName']) . "</p>";
+        echo "<p>Surname: " . htmlspecialchars($user['sName']) . "</p>";
+        echo "<p>Email: " . htmlspecialchars($user['Email']) . "</p>";
+        echo "<p>User ID: " . htmlspecialchars($user['uID']) . "</p>";
+    } else {
+        echo "<p>No account details found.</p>";
+    }
+
+    $conn->close();
+    ?>
 </div>
 
 <!-- Add Post Tab -->
@@ -188,14 +209,17 @@ $conn->close();
     <h2>All Blog Posts</h2>
     <div id="posts-container">
         <?php foreach ($posts as $post): ?>
-            <div class="post-box">
-                <h2><?php echo htmlspecialchars($post['title']); ?></h2>
-                <p><?php echo nl2br(htmlspecialchars($post['post'])); ?></p>
-                <p class="email">Posted by: <?php echo htmlspecialchars($post['email']); ?></p>
-            </div>
+            <?php if ($post['prvt'] === 'no'): ?>
+                <div class="post-box">
+                    <h2><?php echo htmlspecialchars($post['title']); ?></h2>
+                    <p><?php echo nl2br(htmlspecialchars($post['post'])); ?></p>
+                    <p class="email">Posted by: <?php echo htmlspecialchars($post['email']); ?></p>
+                </div>
+            <?php endif; ?>
         <?php endforeach; ?>
     </div>
 </div>
+
 
 <!-- View My Posts Tab -->
 <div id="my-posts" class="tab-content">
@@ -211,10 +235,16 @@ $conn->close();
                     <h2><?php echo htmlspecialchars($post['title']); ?></h2>
                     <p><?php echo nl2br(htmlspecialchars($post['post'])); ?></p>
                     <p class="email">Posted by: <?php echo htmlspecialchars($post['email']); ?></p>
-                    <p> <?php var_dump($post); ?>
+
+                    <!-- Private Post Checkbox with AJAX -->
+                    <label>
+                        <input type="checkbox" name="prvt" value="yes" <?php echo ($post['prvt'] === 'yes') ? 'checked' : ''; ?> onchange="togglePrivacy(<?php echo $post['id']; ?>, this.checked)">
+                        Private
+                    </label>
+
+                    <!-- Delete Post Button -->
                     <form method="POST" action="">
-                        <!-- Hidden input field with the post id -->
-                        <input type="hidden" name="delete_post_id" value="<?php echo ($post['id']); ?>">
+                        <input type="hidden" name="delete_post_id" value="<?php echo $post['id']; ?>">
                         <button type="submit">Delete Post</button>
                     </form>
                 </div>
@@ -224,6 +254,71 @@ $conn->close();
         ?>
     </div>
 </div>
+
+<!-- Edit Posts Tab -->
+<div id="edit-posts" class="tab-content">
+    <h2>Edit Your Posts</h2>
+    <div id="edit-posts-container">
+        <?php
+        $user_email = isset($_COOKIE['email']) ? $_COOKIE['email'] : '';
+        foreach ($posts as $post) {
+            if ($post['email'] === $user_email) {
+                ?>
+                <div class="post-box" id="post-<?php echo $post['id']; ?>">
+                    <form method="POST" action="edit_post.php">
+                        <input type="hidden" name="post_id" value="<?php echo $post['id']; ?>">
+
+                        <label for="title-<?php echo $post['id']; ?>">Title:</label>
+                        <input type="text" id="title-<?php echo $post['id']; ?>" name="title" value="<?php echo htmlspecialchars($post['title']); ?>" required>
+
+                        <label for="post-<?php echo $post['id']; ?>">Post Content:</label>
+                        <textarea id="post-<?php echo $post['id']; ?>" name="post" rows="5" required><?php echo htmlspecialchars($post['post']); ?></textarea>
+
+                        <button type="submit">Save Changes</button>
+                    </form>
+                </div>
+                <?php
+            }
+        }
+        ?>
+    </div>
+</div>
+
+<script>
+function togglePrivacy(postId, isChecked) {
+    const privacyStatus = isChecked ? 'yes' : 'no';
+
+    fetch('toggle_privacy.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, privacyStatus })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Privacy status updated successfully');
+        } else {
+            console.error('Failed to update privacy status:', data.error);
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+</script>
+
+<?php
+// Handle privacy toggle
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_post_id'])) {
+    $togglePostId = $conn->real_escape_string($_POST['toggle_post_id']);
+    $newPrivacyStatus = isset($_POST['prvt']) && $_POST['prvt'] === 'yes' ? 'yes' : 'no';
+
+    $updateSql = "UPDATE posts SET prvt='$newPrivacyStatus' WHERE id='$togglePostId' AND email='$user_email'";
+    if ($conn->query($updateSql) === TRUE) {
+        echo "Post privacy updated successfully!";
+    } else {
+        echo "Error updating privacy status: " . $conn->error;
+    }
+}
+?>
 
 
 <!-- Change Password Tab -->
